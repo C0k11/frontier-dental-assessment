@@ -270,41 +270,42 @@ parsing the JSONL output and the validator/LLM call summary.
 
 ## 10. Project structure
 
+```mermaid
+graph TD
+    Root["frontier dental test/"]
+    Root --> CfgDir[config/]
+    Root --> SrcDir[src/]
+    Root --> TestsDir[tests/]
+    Root --> TopFiles["README.md / requirements.txt / .env.example / .gitignore"]
+
+    CfgDir --> targets["targets.yaml — URLs, selectors, rate limits, LLM toggles"]
+
+    SrcDir --> Main["main.py — Typer CLI: scrape / status / export"]
+    SrcDir --> SCfg["config.py — Pydantic config models + YAML loader"]
+    SrcDir --> Orch["orchestrator.py — ties agents, manages async run"]
+    SrcDir --> AgentsDir[agents/]
+    SrcDir --> HttpDir[http/]
+    SrcDir --> ModelsDir[models/]
+    SrcDir --> StorageDir[storage/]
+    SrcDir --> LLMDir[llm/]
+
+    AgentsDir --> Nav["navigator.py — URL discovery + pagination"]
+    AgentsDir --> Cls["classifier.py — page-type detection"]
+    AgentsDir --> Ext["extractor.py — field extraction + LLM fallback"]
+    AgentsDir --> Val["validator.py — schema + dedup + business rules"]
+    AgentsDir --> Rep["selector_repair.py — LLM-assisted selector suggestions"]
+
+    HttpDir --> HCli["client.py — async Playwright, retry, rate-limit"]
+    ModelsDir --> Prod["product.py — Pydantic Product schema"]
+    StorageDir --> Chk["checkpoint.py — resumable seen-URLs store"]
+    StorageDir --> Writer["writer.py — JSONL writer + CSV exporter"]
+    LLMDir --> LCli["client.py — Gemini 2.5 Flash + NullLLMClient"]
+
+    TestsDir --> TestExt["test_extractor.py — smoke test (no network)"]
 ```
-frontier dental test/
-├── README.md                       ← this file
-├── requirements.txt
-├── .env.example                    ← copy to .env, set GEMINI_API_KEY
-├── .gitignore
-├── config/
-│   └── targets.yaml                ← URLs, selectors, rate limits, LLM toggles
-├── src/
-│   ├── main.py                     ← typer CLI: scrape / status / export
-│   ├── config.py                   ← Pydantic config models + YAML loader
-│   ├── orchestrator.py             ← ties agents, manages async run
-│   ├── agents/
-│   │   ├── navigator.py            ← URL discovery + pagination (rule-based)
-│   │   ├── classifier.py           ← page-type detection (rule + LLM)
-│   │   ├── extractor.py            ← field extraction (selector + LLM fallback)
-│   │   ├── validator.py            ← schema + dedup + business rules
-│   │   └── selector_repair.py      ← LLM-assisted selector suggestion loop
-│   ├── http/
-│   │   └── client.py               ← async Playwright wrapper, retry, rate-limit
-│   ├── models/
-│   │   └── product.py              ← Pydantic Product schema
-│   ├── storage/
-│   │   ├── checkpoint.py           ← resumable seen-URLs store
-│   │   └── writer.py               ← JSONL writer + CSV exporter
-│   └── llm/
-│       └── client.py               ← Gemini 2.5 Flash + NullLLMClient
-├── data/                           ← runtime outputs (gitignored)
-│   ├── output/                     ← products.jsonl, products.csv
-│   ├── checkpoints/                ← seen.json
-│   └── raw_html/                   ← debug capture
-├── logs/                           ← rotated run log
-└── tests/
-    └── test_extractor.py           ← extractor smoke test (no network)
-```
+
+Runtime artifacts (gitignored): `data/output/` (products.jsonl, products.csv),
+`data/checkpoints/seen.json`, `data/raw_html/`, `logs/run.log`.
 
 Run tests:
 ```bash
