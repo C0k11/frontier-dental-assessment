@@ -1,0 +1,72 @@
+# Frontier Dental Take-Home — config-driven targets
+# Edit URLs / selectors / rate limits here without touching code.
+#
+# Site reality (discovered during inspection):
+#   - Safco runs Magento + Hyva theme + Algolia InstantSearch for catalog
+#   - Listing pages render product cards into `.ais-Hits-item` via JS
+#   - Pagination uses Algolia's `.ais-Pagination-*` components
+#   - Product URLs are /product/<slug>, NOT /catalog/.../*.html
+#   - SKU on detail page lives in `form[data-sku]` attr, not text content
+#   - There's a richer `window.masterData` JSON object on each detail page
+#     containing variant-level data (size/qty/SKU/availability) — future enhancement
+
+crawler:
+  delay_seconds_between_requests: 2.0
+  max_concurrent_pages: 2
+  page_timeout_ms: 45000  # Algolia render needs more time
+  retries: 3
+  retry_initial_wait_seconds: 1.5
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  max_products_per_category: 50
+
+categories:
+  - name: "Sutures & Surgical Products"
+    slug: "sutures-surgical-products"
+    url: "https://www.safcodental.com/catalog/sutures-surgical-products"
+
+  - name: "Dental Exam Gloves"
+    slug: "gloves"
+    url: "https://www.safcodental.com/catalog/gloves"
+
+selectors:
+  # Listing page — Algolia InstantSearch render
+  listing:
+    product_card: ".ais-Hits-item"
+    product_link: "a.result, link[itemprop='url']"
+    next_page: ".ais-Pagination-item--nextPage a, a.ais-Pagination-link[aria-label*='Next']"
+    page_render_signal: ".ais-Hits-item, .ais-Hits-list"
+
+  # Detail page — Magento + Hyva
+  detail:
+    name: "h1.page-title span, h1[itemprop='name'], h1"
+    brand: ".pdp-brand-review a span, [href*='shop-by-manufacturer'] span, .manufacturer-name"
+    sku: "form[data-sku]"  # NOTE: read data-sku attribute, not text — extractor handles this
+    price: ".price-box .price, .price"
+    description: "#description, [itemprop='description'], .product-info-main .description"
+    pack_size: ".product-info-pack-size, [data-attribute='pack-size']"
+    availability: "[itemprop='availability'], .stock.available, .stock.unavailable"
+    images: "[itemprop='image'], .product.media img, .gallery img"
+    specifications_rows: ".product.attributes tr, .additional-attributes tr"
+    breadcrumbs: ".breadcrumbs li"
+
+output:
+  jsonl_path: "data/output/products.jsonl"
+  csv_path: "data/output/products.csv"
+  raw_html_dir: "data/raw_html"
+  save_raw_html: false
+
+checkpoint:
+  path: "data/checkpoints/seen.json"
+
+llm:
+  provider: "gemini"
+  model: "gemini-2.5-flash"
+  enable_extractor_fallback: true
+  enable_classifier_fallback: true
+  enable_selector_repair: true
+  max_calls_per_run: 50
+  html_truncate_chars: 30000
+
+logging:
+  path: "logs/run.log"
+  level: "INFO"
