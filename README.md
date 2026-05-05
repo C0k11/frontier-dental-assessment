@@ -9,31 +9,62 @@ and selective use of LLMs as fallback rather than primary extraction.
 
 ## 1. Architecture overview
 
-```
-                    ┌─────────────────────────┐
-                    │      Orchestrator       │  config-driven, async
-                    │  (asyncio + checkpoint) │
-                    └──────────────┬──────────┘
-                                   │
-   ┌───────────────┬───────────────┼────────────────┬──────────────┐
-   ▼               ▼               ▼                ▼              ▼
-┌────────┐   ┌──────────┐    ┌──────────┐    ┌──────────┐   ┌──────────────┐
-│Navigator│ → │Classifier│ → │Extractor │ → │Validator │   │SelectorRepair│
-└────────┘   └──────────┘    └──────────┘    └──────────┘   └──────────────┘
-   rule-      rule + LLM       selector +         dedup,        async LLM
-   based      fallback         LLM fallback       Pydantic       repair loop
-                                                                 (offline)
-
-         Shared:  HttpClient (Playwright + retry + rate-limit)
-                  CheckpointStore (resumable JSON)
-                  JsonlWriter + csv_export
-                  LLMClient (Gemini 2.5 Flash, with NullLLMClient fallback)
-```
-
 The orchestrator drives a single async run. Each agent has a narrow
-responsibility and a clean async boundary, so we can swap implementations
-(e.g. switch Playwright for httpx, Gemini for Claude) without changing
-the core flow.
+responsibility and a clean async boundary, so implementations can be
+swapped (Playwright→httpx, Gemini→Claude) without changing the core
+flow.
+
+### 1.1 Component view
+
+```mermaid
+flowchart LR
+    Config[config/targets.yaml] --> Orchestrator
+    Orchestrator --> Navigator
+    Navigator -->|product URL| Classifier
+    Classifier -->|page type| Extractor
+    Extractor -->|Product| Validator
+    Validator --> Output[products.jsonl + products.csv]
+
+    Extractor -.->|repeated miss| SelectorRepair
+    SelectorRepair -.-> SuggestionsFile[selector_suggestions.json]
+
+    Navigator -.-> HttpClient
+    Extractor -.-> HttpClient
+    Classifier -.-> LLMClient
+    Extractor -.-> LLMClient
+    SelectorRepair -.-> LLMClient
+    Navigator -.-> Checkpoint
+    Validator -.-> Checkpoint
+```
+
+Solid arrows are primary data flow; dotted arrows are side calls to
+shared infrastructure or async feedback loops.
+
+### 1.2 Sequence — extracting one product
+
+```mermaid
+sequenceDiagram
+    Orchestrator ->> Navigator: discover_products(category_url)
+    Navigator ->> HttpClient: fetch(listing)
+    HttpClient -->> Navigator: rendered HTML
+    Navigator -->> Orchestrator: product_url
+
+    Orchestrator ->> HttpClient: fetch(product_url)
+    HttpClient -->> Orchestrator: rendered HTML
+    Orchestrator ->> Extractor: extract(html, url)
+    Extractor ->> LLMClient: extract_missing_fields (only if selectors miss)
+    LLMClient -->> Extractor: filled JSON
+    Extractor -->> Orchestrator: Product
+
+    Orchestrator ->> Validator: validate(product)
+    Validator -->> Orchestrator: ok / reject
+    Orchestrator ->> Storage: append JSONL + mark URL seen
+```
+
+**SelectorRepair operates as an offline feedback loop**: when a CSS
+selector misses repeatedly across products, it asks the LLM for
+replacement suggestions and writes them to a review queue rather than
+auto-deploying — a deliberate production-safety choice.
 
 ---
 
