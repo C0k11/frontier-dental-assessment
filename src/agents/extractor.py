@@ -1,16 +1,34 @@
-"""Extractor: pulls product fields from a detail page HTML.
+"""Extractor: produces a complete Product from one detail page.
 
-Strategy:
-  1. Try CSS selectors (fast, free, deterministic)
-  2. If critical fields are missing, fall back to LLM-based extraction on
-     the same HTML, asking only for the missing fields
-  3. Merge results; tag extraction_method appropriately
+Three-phase strategy:
+
+  Phase 1 — Selector pass (rule-based, fast, deterministic).
+            Pulls structural fields: name, sku, brand, price, image,
+            availability, description.
+
+  Phase 2 — LLM fallback for missing structural fields.
+            Fires only when Phase 1 leaves critical fields empty
+            (sku / brand / price / description). Asks the LLM to fill
+            just those fields from the same HTML.
+
+  Phase 3 — LLM enrichment of semantic specs (always-on if enabled).
+            Reads the cleaned description and extracts structured
+            attributes (material, color, sterile, form, intended_use,
+            …) that selectors fundamentally cannot parse from prose.
+            This is where the LLM earns its keep on a clean Magento
+            site like Safco — Phase 2 rarely fires, but Phase 3 fires
+            on every product with a non-trivial description.
 
 Why this design:
-  - LLMs are 100x more expensive and 10x slower than selectors
-  - On a Magento-templated site like Safco, selectors hit ~95% of products
-  - LLM fallback handles the long tail of irregular layouts
-  - Audit trail (fields_via_llm) lets us monitor quality drift
+  - Selectors are 100x cheaper and 10x faster than LLM calls — use them
+    wherever a deterministic rule is possible (Phase 1).
+  - LLM fallback is a safety net for site changes / irregular layouts
+    (Phase 2) — bounded by `max_calls_per_run`.
+  - LLM enrichment turns free-text descriptions into queryable
+    attributes (Phase 3) — the kind of data that powers downstream
+    e-commerce search and filtering.
+  - Audit trail (`extraction_method`, `fields_via_llm`) lets us monitor
+    whether each phase is doing its job.
 """
 from __future__ import annotations
 
@@ -42,16 +60,27 @@ from ..llm import LLMClient
 from ..models import ExtractionMethod, Product
 
 
+DEFAULT_ENRICHMENT_ATTRS = [
+    "material", "color", "powder_free", "size", "pack_size",
+    "sterile", "absorbable", "form", "texture", "intended_use",
+    "latex_free", "thickness_mil",
+]
+
+
 class ExtractorAgent:
     def __init__(
         self,
         selectors: DetailSelectors,
         llm: LLMClient,
         enable_llm_fallback: bool = True,
+        enable_enrichment: bool = True,
+        enrichment_attributes: Optional[list[str]] = None,
     ):
         self.sel = selectors
         self.llm = llm
         self.enable_llm = enable_llm_fallback
+        self.enable_enrichment = enable_enrichment
+        self.enrichment_attributes = enrichment_attributes or DEFAULT_ENRICHMENT_ATTRS
 
     async def extract(
         self,
@@ -120,10 +149,10 @@ class ExtractorAgent:
             if len(selector_fields) <= 1:
                 method = ExtractionMethod.LLM_FALLBACK
 
-        # === Step 4: build final Product ===
+        # === Step 4: build initial Product ===
         confidence = self._confidence(method, fields_via_llm, data)
         try:
-            return Product(
+            product = Product(
                 **{k: v for k, v in data.items() if v is not None},
                 extraction_method=method,
                 extraction_confidence=confidence,
@@ -132,6 +161,54 @@ class ExtractorAgent:
         except Exception as e:
             logger.error(f"Final Pydantic validation failed at {url}: {e}")
             return None
+
+        # === Step 5: LLM enrichment of semantic attributes ===
+        # This is where the LLM most reliably earns its keep on a clean
+        # site: parsing free-text description into structured specs that
+        # selectors cannot reach.
+        if self.enable_enrichment:
+            await self._enrich_specifications(product)
+
+        return product
+
+    async def _enrich_specifications(self, product: Product) -> None:
+        """Extract structured attributes from product description with the LLM.
+
+        Mutates `product.specifications` in place. Existing keys (set by
+        selectors) are preserved — selector-derived specs win.
+        """
+        if not product.description and not product.name:
+            return
+        try:
+            extracted = await self.llm.extract_attributes(
+                name=product.name,
+                description=product.description or "",
+                attributes=self.enrichment_attributes,
+            )
+        except Exception as e:
+            logger.warning(f"Enrichment LLM call failed for {product.sku or product.url}: {e}")
+            return
+
+        if not extracted:
+            return
+
+        added: list[str] = []
+        for k, v in extracted.items():
+            if v is None or v == "":
+                continue
+            if k in product.specifications:
+                # Selector-derived value wins
+                continue
+            product.specifications[k] = str(v)
+            added.append(k)
+
+        if added:
+            if "specifications" not in product.fields_via_llm:
+                product.fields_via_llm.append("specifications")
+            if product.extraction_method == ExtractionMethod.SELECTOR:
+                product.extraction_method = ExtractionMethod.HYBRID
+                product.extraction_confidence = min(product.extraction_confidence, 0.85)
+            logger.debug(f"Enriched {product.sku or product.url} with {added}")
 
     # === Helpers ===
 

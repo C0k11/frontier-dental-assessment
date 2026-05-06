@@ -42,8 +42,7 @@ flowchart LR
     Orchestrator --> Navigator
     Navigator -->|product URL| Classifier
     Classifier -->|page type| Extractor
-    Extractor -->|Product| Enricher
-    Enricher -->|enriched Product| Validator
+    Extractor -->|Product| Validator
     Validator --> Output[products.jsonl + products.csv]
 
     Extractor -.->|repeated miss| SelectorRepair
@@ -53,7 +52,6 @@ flowchart LR
     Extractor -.-> HttpClient
     Classifier -.-> LLMClient
     Extractor -.-> LLMClient
-    Enricher -.-> LLMClient
     SelectorRepair -.-> LLMClient
     Navigator -.-> Checkpoint
     Validator -.-> Checkpoint
@@ -63,6 +61,10 @@ Solid arrows are primary data flow; dotted arrows are side calls to
 shared infrastructure or async feedback loops.
 
 ### 1.2 Sequence — extracting one product
+
+The Extractor runs three internal phases for each product page —
+selectors first, then LLM fallback for missing structural fields, then
+LLM enrichment of semantic attributes from the description.
 
 ```mermaid
 sequenceDiagram
@@ -74,14 +76,14 @@ sequenceDiagram
     Orchestrator ->> HttpClient: fetch(product_url)
     HttpClient -->> Orchestrator: rendered HTML
     Orchestrator ->> Extractor: extract(html, url)
-    Extractor ->> LLMClient: extract_missing_fields (only if selectors miss)
-    LLMClient -->> Extractor: filled JSON
-    Extractor -->> Orchestrator: Product (structural fields)
 
-    Orchestrator ->> Enricher: enrich(product)
-    Enricher ->> LLMClient: extract_attributes(name, description)
-    LLMClient -->> Enricher: structured attribute JSON
-    Enricher -->> Orchestrator: Product (with semantic specs)
+    Note over Extractor: Phase 1 — CSS selectors → structural fields
+    Extractor ->> LLMClient: extract_missing_fields (Phase 2, only if selectors miss)
+    LLMClient -->> Extractor: filled JSON
+    Note over Extractor: Phase 3 — LLM enrichment of semantic specs
+    Extractor ->> LLMClient: extract_attributes(name, description)
+    LLMClient -->> Extractor: structured attribute JSON
+    Extractor -->> Orchestrator: Product
 
     Orchestrator ->> Validator: validate(product)
     Validator -->> Orchestrator: ok / reject
@@ -153,8 +155,7 @@ selectors are drifting and the SelectorRepair queue should be triaged.
 |---|---|---|
 | **Navigator** | Crawl category page, extract product URLs, walk pagination | None (pure rules) |
 | **Classifier** | URL pattern + DOM signals → `category_listing` / `product_detail` / `other` | Fallback when rules are inconclusive |
-| **Extractor** | CSS selectors → Pydantic Product. Identifies missing critical fields | Fills gaps via JSON-mode prompt asking only for missing fields |
-| **Enricher** ⭐ | Reads product name + description, extracts structured attributes (material, color, sterile, form, intended_use, …) into `specifications` | **Primary — one call per product.** This is where AI adds the most value: parsing free-text prose into queryable structured data |
+| **Extractor** | Three phases: (1) CSS selectors for structural fields, (2) LLM fallback for missing structural fields, (3) **LLM enrichment of semantic attributes** from the free-text description into `specifications` (material, color, sterile, form, intended_use, …) | **Phase 3 fires once per product** — primary AI value-add. Phase 2 fires only when selectors miss critical fields. |
 | **Validator** | Schema check + dedup by SKU/URL + business rules | None |
 | **SelectorRepair** | Tracks per-field selector failures; on threshold, persists candidate replacement selectors for human review | Suggests new CSS selectors |
 
@@ -369,8 +370,7 @@ graph TD
 
     AgentsDir --> Nav["navigator.py — URL discovery + pagination"]
     AgentsDir --> Cls["classifier.py — page-type detection"]
-    AgentsDir --> Ext["extractor.py — field extraction + LLM fallback"]
-    AgentsDir --> Enr["enricher.py — LLM attribute extraction from description"]
+    AgentsDir --> Ext["extractor.py — selectors + LLM fallback + LLM enrichment"]
     AgentsDir --> Val["validator.py — schema + dedup + business rules"]
     AgentsDir --> Rep["selector_repair.py — LLM-assisted selector suggestions"]
 
@@ -381,7 +381,7 @@ graph TD
     LLMDir --> LCli["client.py — Gemini 2.5 Flash + NullLLMClient"]
 
     TestsDir --> TestExt["test_extractor.py"]
-    TestsDir --> TestEnr["test_enricher.py"]
+    TestsDir --> TestEnr["test_extractor_enrichment.py"]
 ```
 
 Runtime artifacts (gitignored): `data/output/` (products.jsonl, products.csv),
