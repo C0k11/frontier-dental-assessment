@@ -13,17 +13,21 @@ structural fields, LLM for semantic enrichment.
 |---|---|
 | Products extracted | **100** (50 Sutures & Surgical · 50 Dental Exam Gloves) |
 | Schema validation | **100% pass**, 0 duplicates |
-| Field coverage (name / sku / brand / price / description / image / availability) | **100%** |
+| Structural-field coverage (name / sku / brand / price / description / image / availability) | **100%** |
 | Extraction method breakdown | **83 selector-only · 17 hybrid (LLM-enriched specs)** |
-| LLM calls | **100** — one per product for attribute enrichment |
+| LLM enrichment attempts | **100** (one per product, paced at 13 RPM under Gemini free-tier limit) |
+| LLM enrichment successes | **17** (remainder hit free-tier daily quota, fell back to selector-only — see §6) |
 | Avg LLM-extracted attributes per enriched product | **5–7** (material, sterile, form, intended_use, …) |
-| Pages crawled | 8 (4 listing pages × 2 categories) + 100 detail pages |
+| Pages crawled | 8 listing pages (4 × 2 categories) + 100 detail pages |
 
-The **selector pass** captures the structural catalog (name, SKU, price,
-brand, image, availability). The **LLM enricher** then reads the
-free-text description and pulls structured attributes that selectors
-cannot extract — the kind of data that powers downstream search and
-filtering.
+The **selector pass** captures the structural catalog (name, SKU,
+price, brand, image, availability). The **LLM enrichment phase** then
+reads the free-text description and pulls structured attributes that
+selectors cannot extract — the kind of data that powers downstream
+search and filtering. When LLM enrichment fails (rate-limited or
+returns empty), the product still emits with `extraction_method =
+"selector"` and full structural-field coverage — graceful degradation
+by design.
 
 ---
 
@@ -64,7 +68,9 @@ shared infrastructure or async feedback loops.
 
 The Extractor runs three internal phases for each product page —
 selectors first, then LLM fallback for missing structural fields, then
-LLM enrichment of semantic attributes from the description.
+LLM enrichment of semantic attributes from the description. LLMClient
+self-paces calls at one per ~4.5s to stay under the Gemini free-tier
+RPM cap; each LLM call has retry + graceful fallback if it fails.
 
 ```mermaid
 sequenceDiagram
