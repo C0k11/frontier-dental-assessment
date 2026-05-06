@@ -66,7 +66,15 @@ class LLMConfig(BaseModel):
     enable_extractor_fallback: bool = True
     enable_classifier_fallback: bool = True
     enable_selector_repair: bool = True
-    max_calls_per_run: int = 50
+    enable_enricher: bool = True
+    enricher_attributes: list[str] = Field(
+        default_factory=lambda: [
+            "material", "color", "powder_free", "size", "pack_size",
+            "sterile", "absorbable", "form", "texture", "intended_use",
+            "latex_free", "thickness_mil",
+        ]
+    )
+    max_calls_per_run: int = 250
     html_truncate_chars: int = 30000
 
 

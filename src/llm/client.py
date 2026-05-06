@@ -38,6 +38,17 @@ class LLMClient(ABC):
     ) -> list[str]:
         """Return up to 3 candidate CSS selectors for `target_field`."""
 
+    @abstractmethod
+    async def extract_attributes(
+        self, name: str, description: str, attributes: list[str]
+    ) -> dict[str, str]:
+        """Extract structured attributes from product description text.
+
+        Used by EnricherAgent. Returns a dict of {attribute: value} where
+        each attribute name comes from the requested list. Attributes for
+        which no evidence is found are omitted (no hallucinations).
+        """
+
     @property
     @abstractmethod
     def call_count(self) -> int:
@@ -59,6 +70,11 @@ class NullLLMClient(LLMClient):
         self, html_excerpt: str, broken_selector: str, target_field: str
     ) -> list[str]:
         return []
+
+    async def extract_attributes(
+        self, name: str, description: str, attributes: list[str]
+    ) -> dict[str, str]:
+        return {}
 
     @property
     def call_count(self) -> int:
@@ -178,6 +194,46 @@ HTML:
         result = await self._generate_json(prompt)
         sels = result.get("selectors", [])
         return [s for s in sels if isinstance(s, str)][:3]
+
+    async def extract_attributes(
+        self, name: str, description: str, attributes: list[str]
+    ) -> dict[str, str]:
+        attrs_str = ", ".join(attributes)
+        prompt = f"""You are extracting structured attributes from a dental supply
+product. Read the product name and description and pull out the listed
+attributes when there is clear evidence in the text.
+
+Required attribute keys (only return those you find evidence for):
+{attrs_str}
+
+Rules:
+- Return JSON: {{"<attr>": "<value>", ...}}
+- Booleans must be "true" or "false" strings.
+- Pack size example: "100/box", "50 pcs", "10 pack".
+- Material examples: "nitrile", "latex", "vinyl", "polyurethane",
+  "porcine gelatin", "polyester", "silk".
+- intended_use should be a short noun phrase like "hemostatic" or
+  "infection control".
+- Omit any attribute you cannot confirm from the text.
+- Do not invent values. Do not echo back the field list.
+
+Product name: {name}
+Description: {description}
+"""
+        result = await self._generate_json(prompt)
+        if not isinstance(result, dict):
+            return {}
+        # Defensive coerce: only string keys, values stringified
+        out: dict[str, str] = {}
+        for k, v in result.items():
+            if not isinstance(k, str):
+                continue
+            if k not in attributes:
+                continue
+            if v is None or v == "":
+                continue
+            out[k] = str(v).strip().lower() if isinstance(v, bool) else str(v).strip()
+        return out
 
 
 def build_llm_client(provider: str, model: str, max_calls: int, html_truncate: int) -> LLMClient:

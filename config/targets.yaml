@@ -61,10 +61,36 @@ checkpoint:
 llm:
   provider: "gemini"
   model: "gemini-2.5-flash"
+  # Three LLM-using strategies:
+  #   - enable_enricher: ALWAYS-ON. Extracts structured attributes from
+  #     description text on every product (one call each). This is the
+  #     primary AI value-add — selectors can't parse free-text prose.
+  #   - enable_extractor_fallback: Selectively fires when CSS selectors
+  #     miss critical fields (sku/brand/price/description).
+  #   - enable_selector_repair: Offline feedback loop — when a selector
+  #     fails repeatedly, asks the LLM for replacement selectors,
+  #     persisted to a review file (NOT auto-deployed).
+  #   - enable_classifier_fallback: Page-type fallback when URL + DOM
+  #     signals can't tell category vs detail.
+  enable_enricher: true
   enable_extractor_fallback: true
   enable_classifier_fallback: true
   enable_selector_repair: true
-  max_calls_per_run: 50
+  enricher_attributes:
+    - material
+    - color
+    - powder_free
+    - size
+    - pack_size
+    - sterile
+    - absorbable
+    - form
+    - texture
+    - intended_use
+    - latex_free
+    - thickness_mil
+  # Cost guard. With enricher enabled, a 100-product run = ~100 calls.
+  max_calls_per_run: 250
   html_truncate_chars: 30000
 
 logging:

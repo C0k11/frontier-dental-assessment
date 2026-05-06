@@ -13,6 +13,7 @@ from pathlib import Path
 from loguru import logger
 
 from .agents import (
+    EnricherAgent,
     ExtractorAgent,
     NavigatorAgent,
     PageClassifierAgent,
@@ -54,6 +55,11 @@ class Orchestrator:
             selectors=config.selectors.detail,
             llm=self.llm,
             enable_llm_fallback=config.llm.enable_extractor_fallback,
+        )
+        self.enricher = EnricherAgent(
+            llm=self.llm,
+            attributes=config.llm.enricher_attributes,
+            enabled=config.llm.enable_enricher,
         )
         self.validator = ValidatorAgent()
         self.repair = SelectorRepairAgent(
@@ -117,6 +123,10 @@ class Orchestrator:
 
             if product is None:
                 continue
+
+            # LLM-powered enrichment: extract structured attributes from the
+            # free-text description that selectors cannot parse easily.
+            product = await self.enricher.enrich(product)
 
             v = self.validator.validate(product)
             if v.valid:
