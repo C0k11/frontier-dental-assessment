@@ -76,6 +76,8 @@ class LLMConfig(BaseModel):
     )
     max_calls_per_run: int = 250
     html_truncate_chars: int = 30000
+    # Gemini free-tier RPM is 15. 4.5s gap = ~13 RPM with safety margin.
+    min_seconds_between_calls: float = 4.5
 
 
 class LoggingConfig(BaseModel):

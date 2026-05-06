@@ -92,6 +92,10 @@ llm:
   # Cost guard. With enricher enabled, a 100-product run = ~100 calls.
   max_calls_per_run: 250
   html_truncate_chars: 30000
+  # Gemini free-tier RPM cap is 15. We leave a margin and pace at one call
+  # every 4.5s = ~13 RPM. In production with paid tier, drop to 0 or use
+  # a token-bucket sized to actual quota.
+  min_seconds_between_calls: 4.5
 
 logging:
   path: "logs/run.log"

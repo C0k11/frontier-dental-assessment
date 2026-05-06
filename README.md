@@ -278,6 +278,16 @@ JSON-encoded so one row = one product.
 - **No Cloudflare / bot challenge handling** — Safco didn't surface
   one during testing; if introduced, would need stealth playwright +
   proxy rotation.
+- **LLM throughput constrained by free-tier quota.** The sample run
+  was executed against the Gemini 2.5 Flash free tier, which caps
+  daily requests at the project level. The pipeline self-paces at
+  ~13 RPM (one call every 4.5s) to stay under the per-minute limit,
+  and the daily cap was reached during this POC. The architecture
+  degrades gracefully — when an LLM call hits 429, the extractor
+  falls back to selector-only data and the product is still emitted
+  with `extraction_method = "selector"`. Production deployment would
+  use the paid tier (no daily cap, higher RPM) or a token-bucket
+  rate limiter sized to the actual quota.
 
 ---
 

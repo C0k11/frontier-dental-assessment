@@ -44,6 +44,7 @@ class Orchestrator:
             model=config.llm.model,
             max_calls=config.llm.max_calls_per_run,
             html_truncate=config.llm.html_truncate_chars,
+            min_seconds_between_calls=config.llm.min_seconds_between_calls,
         )
 
         self.classifier = PageClassifierAgent(

@@ -90,6 +90,7 @@ class GeminiClient(LLMClient):
         model: str = "gemini-2.5-flash",
         max_calls: int = 50,
         html_truncate: int = 30_000,
+        min_seconds_between_calls: float = 4.5,
     ):
         try:
             import google.generativeai as genai
@@ -108,6 +109,9 @@ class GeminiClient(LLMClient):
         self._model_name = model
         self._max_calls = max_calls
         self._html_truncate = html_truncate
+        # Rate limit: Gemini free tier is 15 RPM. 4.5s gap = 13.3 RPM (safety).
+        self._min_interval = min_seconds_between_calls
+        self._last_call_at = 0.0
         self._calls = 0
         self._lock = asyncio.Lock()
 
@@ -116,10 +120,20 @@ class GeminiClient(LLMClient):
         return self._calls
 
     async def _generate_json(self, prompt: str) -> dict[str, Any]:
+        # Serialize the START of each call so we never exceed Gemini's RPM cap.
+        # The actual network round-trip happens outside the lock, so calls can
+        # overlap on the wire — what matters for 429 is request *start rate*.
         async with self._lock:
             if self._calls >= self._max_calls:
                 logger.warning(f"LLM call cap reached ({self._max_calls}); skipping.")
                 return {}
+            loop = asyncio.get_event_loop()
+            elapsed = loop.time() - self._last_call_at
+            if elapsed < self._min_interval:
+                wait = self._min_interval - elapsed
+                logger.debug(f"LLM rate-limit wait: {wait:.1f}s")
+                await asyncio.sleep(wait)
+            self._last_call_at = loop.time()
             self._calls += 1
         try:
             model = self._genai.GenerativeModel(self._model_name)
@@ -236,11 +250,22 @@ Description: {description}
         return out
 
 
-def build_llm_client(provider: str, model: str, max_calls: int, html_truncate: int) -> LLMClient:
+def build_llm_client(
+    provider: str,
+    model: str,
+    max_calls: int,
+    html_truncate: int,
+    min_seconds_between_calls: float = 4.5,
+) -> LLMClient:
     """Factory. Returns NullLLMClient if no API key — graceful degradation."""
     if provider == "gemini" and os.getenv("GEMINI_API_KEY"):
         try:
-            return GeminiClient(model=model, max_calls=max_calls, html_truncate=html_truncate)
+            return GeminiClient(
+                model=model,
+                max_calls=max_calls,
+                html_truncate=html_truncate,
+                min_seconds_between_calls=min_seconds_between_calls,
+            )
         except Exception as e:
             logger.warning(f"Failed to init Gemini, falling back to no-op LLM: {e}")
             return NullLLMClient()
