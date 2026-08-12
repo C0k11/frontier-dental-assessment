@@ -1,4 +1,4 @@
-# Frontier Dental Take-Home — config-driven targets
+# Frontier Dental Take-Home - config-driven targets
 # Edit URLs / selectors / rate limits here without touching code.
 #
 # Site reality (discovered during inspection):
@@ -8,7 +8,7 @@
 #   - Product URLs are /product/<slug>, NOT /catalog/.../*.html
 #   - SKU on detail page lives in `form[data-sku]` attr, not text content
 #   - There's a richer `window.masterData` JSON object on each detail page
-#     containing variant-level data (size/qty/SKU/availability) — future enhancement
+#     containing variant-level data (size/qty/SKU/availability) - future enhancement
 
 crawler:
   delay_seconds_between_requests: 2.0
@@ -29,18 +29,18 @@ categories:
     url: "https://www.safcodental.com/catalog/gloves"
 
 selectors:
-  # Listing page — Algolia InstantSearch render
+  # Listing page - Algolia InstantSearch render
   listing:
     product_card: ".ais-Hits-item"
     product_link: "a.result, link[itemprop='url']"
     next_page: ".ais-Pagination-item--nextPage a, a.ais-Pagination-link[aria-label*='Next']"
     page_render_signal: ".ais-Hits-item, .ais-Hits-list"
 
-  # Detail page — Magento + Hyva
+  # Detail page - Magento + Hyva
   detail:
     name: "h1.page-title span, h1[itemprop='name'], h1"
     brand: ".pdp-brand-review a span, [href*='shop-by-manufacturer'] span, .manufacturer-name"
-    sku: "form[data-sku]"  # NOTE: read data-sku attribute, not text — extractor handles this
+    sku: "form[data-sku]"  # NOTE: read data-sku attribute, not text - extractor handles this
     price: ".price-box .price, .price"
     description: "#description, [itemprop='description'], .product-info-main .description"
     pack_size: ".product-info-pack-size, [data-attribute='pack-size']"
@@ -64,10 +64,10 @@ llm:
   # Three LLM-using strategies:
   #   - enable_enricher: ALWAYS-ON. Extracts structured attributes from
   #     description text on every product (one call each). This is the
-  #     primary AI value-add — selectors can't parse free-text prose.
+  #     primary AI value-add - selectors can't parse free-text prose.
   #   - enable_extractor_fallback: Selectively fires when CSS selectors
   #     miss critical fields (sku/brand/price/description).
-  #   - enable_selector_repair: Offline feedback loop — when a selector
+  #   - enable_selector_repair: Offline feedback loop - when a selector
   #     fails repeatedly, asks the LLM for replacement selectors,
   #     persisted to a review file (NOT auto-deployed).
   #   - enable_classifier_fallback: Page-type fallback when URL + DOM

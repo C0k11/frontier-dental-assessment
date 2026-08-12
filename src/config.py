@@ -1,4 +1,4 @@
-"""Config loader. YAML → dataclasses-style typed access."""
+"""Config loader. YAML -> dataclasses-style typed access."""
 from __future__ import annotations
 
 from pathlib import Path

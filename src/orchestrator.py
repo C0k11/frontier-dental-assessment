@@ -1,7 +1,7 @@
 """Orchestrator: ties all agents together into one run.
 
 Design notes:
-  - All I/O is async — Playwright + Gemini API + file writes are concurrent
+  - All I/O is async - Playwright + Gemini API + file writes are concurrent
   - Concurrency is bounded by HttpClient's semaphore + per-run product cap
   - Resumable: every successful URL is checkpointed; rerun skips done URLs
   - Idempotent: dedup by SKU (or URL) ensures rerunning produces same set

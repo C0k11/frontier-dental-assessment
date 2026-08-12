@@ -2,30 +2,30 @@
 
 Three-phase strategy:
 
-  Phase 1 — Selector pass (rule-based, fast, deterministic).
+  Phase 1 - Selector pass (rule-based, fast, deterministic).
             Pulls structural fields: name, sku, brand, price, image,
             availability, description.
 
-  Phase 2 — LLM fallback for missing structural fields.
+  Phase 2 - LLM fallback for missing structural fields.
             Fires only when Phase 1 leaves critical fields empty
             (sku / brand / price / description). Asks the LLM to fill
             just those fields from the same HTML.
 
-  Phase 3 — LLM enrichment of semantic specs (always-on if enabled).
+  Phase 3 - LLM enrichment of semantic specs (always-on if enabled).
             Reads the cleaned description and extracts structured
             attributes (material, color, sterile, form, intended_use,
-            …) that selectors fundamentally cannot parse from prose.
+            ...) that selectors fundamentally cannot parse from prose.
             This is where the LLM earns its keep on a clean Magento
-            site like Safco — Phase 2 rarely fires, but Phase 3 fires
+            site like Safco - Phase 2 rarely fires, but Phase 3 fires
             on every product with a non-trivial description.
 
 Why this design:
-  - Selectors are 100x cheaper and 10x faster than LLM calls — use them
+  - Selectors are 100x cheaper and 10x faster than LLM calls - use them
     wherever a deterministic rule is possible (Phase 1).
   - LLM fallback is a safety net for site changes / irregular layouts
-    (Phase 2) — bounded by `max_calls_per_run`.
+    (Phase 2) - bounded by `max_calls_per_run`.
   - LLM enrichment turns free-text descriptions into queryable
-    attributes (Phase 3) — the kind of data that powers downstream
+    attributes (Phase 3) - the kind of data that powers downstream
     e-commerce search and filtering.
   - Audit trail (`extraction_method`, `fields_via_llm`) lets us monitor
     whether each phase is doing its job.
@@ -92,7 +92,7 @@ class ExtractorAgent:
         tree = HTMLParser(html)
 
         # === Step 1: rule-based extraction ===
-        # SKU on Safco is in form[data-sku] attribute, not text content —
+        # SKU on Safco is in form[data-sku] attribute, not text content -
         # try attribute first, then text fallback.
         sku = self._first_attr(tree, self.sel.sku, "data-sku") or self._first_text(tree, self.sel.sku)
 
@@ -113,13 +113,13 @@ class ExtractorAgent:
 
         # If we can't even find the name, this is probably not a product page.
         if not data["name"]:
-            logger.warning(f"No product name found at {url} — skipping")
+            logger.warning(f"No product name found at {url} - skipping")
             return None
 
         # === Step 2: identify gaps ===
         try:
             # Construct preliminary product to check missing fields
-            # (don't enforce the full schema yet — partial data ok at this stage)
+            # (don't enforce the full schema yet - partial data ok at this stage)
             prelim = Product(**{k: v for k, v in data.items() if v is not None})
         except Exception as e:
             logger.warning(f"Pydantic rejected initial extraction at {url}: {e}")
@@ -131,7 +131,7 @@ class ExtractorAgent:
 
         # === Step 3: LLM fallback if gaps + enabled ===
         if missing and self.enable_llm:
-            logger.info(f"Selector miss for {missing} at {url} → invoking LLM fallback")
+            logger.info(f"Selector miss for {missing} at {url} -> invoking LLM fallback")
             try:
                 llm_data = await self.llm.extract_product_fields(html, missing)
                 for field in missing:
@@ -175,7 +175,7 @@ class ExtractorAgent:
         """Extract structured attributes from product description with the LLM.
 
         Mutates `product.specifications` in place. Existing keys (set by
-        selectors) are preserved — selector-derived specs win.
+        selectors) are preserved - selector-derived specs win.
         """
         if not product.description and not product.name:
             return
@@ -233,7 +233,7 @@ class ExtractorAgent:
         return None
 
     def _first_attr_or_text(self, tree: HTMLParser, combined_selector: str) -> Optional[str]:
-        """For availability — check itemprop content attr first, fall back to text."""
+        """For availability - check itemprop content attr first, fall back to text."""
         for sel in self._split(combined_selector):
             node = tree.css_first(sel)
             if node:
@@ -251,7 +251,7 @@ class ExtractorAgent:
 
     def _availability(self, tree: HTMLParser, combined_selector: str) -> Optional[str]:
         """Conservative availability: only trust Schema.org `[itemprop=availability]`
-        href and explicit class signals — ignore button-label text noise."""
+        href and explicit class signals - ignore button-label text noise."""
         for sel in self._split(combined_selector):
             for node in tree.css(sel):
                 href = node.attributes.get("href") or ""

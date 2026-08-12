@@ -10,7 +10,7 @@ Usage pattern (called from extractor on extraction failure):
   - candidate selectors are written to a `selector_overrides.yaml`
   - extractor picks them up on the next run
 
-For the POC we don't auto-deploy the repaired selector — we surface
+For the POC we don't auto-deploy the repaired selector - we surface
 it in logs + a JSON file for human review. That's a deliberate
 production-safety choice (auto-deploying LLM-generated CSS is risky).
 """

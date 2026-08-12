@@ -31,7 +31,7 @@ class CheckpointStore:
 
     def _flush(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        # Atomic write: tmp → rename
+        # Atomic write: tmp -> rename
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps(sorted(self._seen)), encoding="utf-8")
         tmp.replace(self.path)

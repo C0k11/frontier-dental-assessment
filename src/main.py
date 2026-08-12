@@ -19,7 +19,7 @@ from .config import load_config
 from .orchestrator import Orchestrator
 from .storage import csv_export
 
-app = typer.Typer(add_completion=False, help="Frontier Dental Take-Home — agent-based scraper")
+app = typer.Typer(add_completion=False, help="Frontier Dental Take-Home - agent-based scraper")
 
 
 def _setup_logging(level: str, log_path: str | Path) -> None:
@@ -52,7 +52,7 @@ def export(
 ):
     """Re-export current JSONL to CSV (no scraping)."""
     rows = csv_export(jsonl, csv)
-    typer.echo(f"Exported {rows} rows → {csv}")
+    typer.echo(f"Exported {rows} rows -> {csv}")
 
 
 @app.command()

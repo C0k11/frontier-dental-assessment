@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 
 class ExtractionMethod(str, Enum):
-    """How a product was extracted — used for quality monitoring."""
+    """How a product was extracted - used for quality monitoring."""
     SELECTOR = "selector"
     LLM_FALLBACK = "llm_fallback"
     HYBRID = "hybrid"  # selector got most fields, LLM filled the rest

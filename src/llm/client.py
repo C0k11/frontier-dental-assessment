@@ -29,7 +29,7 @@ class LLMClient(ABC):
         self, html_excerpt: str, missing_fields: list[str]
     ) -> dict[str, Any]:
         """Return JSON dict with values for the requested missing fields.
-        Omit fields not found — don't hallucinate.
+        Omit fields not found - don't hallucinate.
         """
 
     @abstractmethod
@@ -122,7 +122,7 @@ class GeminiClient(LLMClient):
     async def _generate_json(self, prompt: str) -> dict[str, Any]:
         # Serialize the START of each call so we never exceed Gemini's RPM cap.
         # The actual network round-trip happens outside the lock, so calls can
-        # overlap on the wire — what matters for 429 is request *start rate*.
+        # overlap on the wire - what matters for 429 is request *start rate*.
         async with self._lock:
             if self._calls >= self._max_calls:
                 logger.warning(f"LLM call cap reached ({self._max_calls}); skipping.")
@@ -182,7 +182,7 @@ HTML excerpt:
 
 Required fields: {fields_str}
 
-Return JSON. Only include fields you find in the HTML — do NOT hallucinate.
+Return JSON. Only include fields you find in the HTML - do NOT hallucinate.
 For prices, return a number without currency symbols.
 For arrays (like image_urls), return a list of strings.
 
@@ -257,7 +257,7 @@ def build_llm_client(
     html_truncate: int,
     min_seconds_between_calls: float = 4.5,
 ) -> LLMClient:
-    """Factory. Returns NullLLMClient if no API key — graceful degradation."""
+    """Factory. Returns NullLLMClient if no API key - graceful degradation."""
     if provider == "gemini" and os.getenv("GEMINI_API_KEY"):
         try:
             return GeminiClient(
@@ -269,5 +269,5 @@ def build_llm_client(
         except Exception as e:
             logger.warning(f"Failed to init Gemini, falling back to no-op LLM: {e}")
             return NullLLMClient()
-    logger.info("No LLM API key configured — running with rule-based extraction only")
+    logger.info("No LLM API key configured - running with rule-based extraction only")
     return NullLLMClient()

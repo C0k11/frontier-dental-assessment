@@ -10,7 +10,7 @@ from ..models import Product
 
 
 class JsonlWriter:
-    """Append-only JSONL writer. One product per line — easy to stream / dedup."""
+    """Append-only JSONL writer. One product per line - easy to stream / dedup."""
 
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -47,7 +47,7 @@ CSV_COLUMNS = [
 
 
 def csv_export(jsonl_path: str | Path, csv_path: str | Path) -> int:
-    """Convert JSONL → CSV. Returns row count.
+    """Convert JSONL -> CSV. Returns row count.
 
     Lists / dicts are JSON-encoded so the CSV stays one-row-per-product.
     """

@@ -1,6 +1,6 @@
 """Navigator: discovers product URLs from category listing pages.
 
-Pure rule-based — no LLM here. Categories follow predictable URL/DOM patterns
+Pure rule-based - no LLM here. Categories follow predictable URL/DOM patterns
 and using LLM would be slow + expensive for what amounts to anchor-tag
 extraction.
 """
@@ -38,7 +38,7 @@ class NavigatorAgent:
 
         while current_url and current_url not in seen_pages:
             seen_pages.add(current_url)
-            logger.info(f"Navigator: page {page_num} → {current_url}")
+            logger.info(f"Navigator: page {page_num} -> {current_url}")
 
             try:
                 result = await self.http.fetch(
@@ -53,7 +53,7 @@ class NavigatorAgent:
             product_links = self._extract_product_links(tree, current_url)
 
             if not product_links:
-                logger.warning(f"No products found on {current_url} — possible selector drift")
+                logger.warning(f"No products found on {current_url} - possible selector drift")
 
             for link in product_links:
                 if yielded >= self.max_products:
